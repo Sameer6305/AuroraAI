@@ -23,15 +23,16 @@ export default function HistoryPage() {
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8">Reflection History</h1>
+        <h1 className="text-4xl font-bold mb-2 accent-gradient">Reflection History</h1>
+        <p className="text-gray-400 mb-8">Review your past reflections and track your progress</p>
         
         <div className="mb-6 flex gap-4">
           <input
             type="search"
             placeholder="Search reflections..."
-            className="flex-1 px-4 py-2 rounded-lg border border-gray-700 bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-field flex-1"
           />
-          <select className="px-4 py-2 rounded-lg border border-gray-700 bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select className="input-field w-48">
             <option value="">All Moods</option>
             <option value="excellent">Excellent</option>
             <option value="good">Good</option>
@@ -45,17 +46,17 @@ export default function HistoryPage() {
           {mockHistory.map((entry) => (
             <div
               key={entry.id}
-              className="p-6 rounded-lg bg-gray-800 border border-gray-700 hover:border-gray-600 transition-colors cursor-pointer"
+              className="card hover:border-accent/50 transition-all cursor-pointer"
             >
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-xl font-semibold">{entry.date}</h3>
-                <span className="px-3 py-1 rounded-full bg-blue-600 text-sm">
+                <span className="px-3 py-1 rounded-full bg-accent text-[#0e0e0e] text-sm font-semibold">
                   {entry.mood}
                 </span>
               </div>
               <p className="text-gray-400">{entry.summary}</p>
               <div className="mt-4 flex gap-3">
-                <button className="text-sm text-blue-400 hover:text-blue-300">
+                <button className="text-sm accent-text hover:underline">
                   View Details
                 </button>
                 <button className="text-sm text-gray-400 hover:text-gray-300">
@@ -67,9 +68,9 @@ export default function HistoryPage() {
         </div>
 
         {mockHistory.length === 0 && (
-          <div className="text-center py-12">
+          <div className="text-center py-12 card">
             <p className="text-gray-400 text-lg mb-4">No reflections yet</p>
-            <button className="py-2 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 transition-colors">
+            <button className="btn-primary">
               Create Your First Reflection
             </button>
           </div>

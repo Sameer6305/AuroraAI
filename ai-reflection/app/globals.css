@@ -1,18 +1,129 @@
 @import "tailwindcss";
 
-:root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+/* Custom CSS Variables */
+@theme {
+  --color-background: #0e0e0e;
+  --color-foreground: #f9fafb;
+  --color-accent: #00ffff;
+  
+  --font-family-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
+/* Base Styles */
+* {
+  border-color: rgb(31 41 55);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #0e0e0e;
+  color: #f9fafb;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #f9fafb;
+  font-weight: 600;
+}
+
+/* Custom Utility Classes */
+.btn-primary {
+  background-color: #00ffff;
+  color: #0e0e0e;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.btn-primary:hover {
+  background-color: rgba(0, 255, 255, 0.9);
+  box-shadow: 0 10px 15px -3px rgba(0, 255, 255, 0.2);
+}
+
+.btn-secondary {
+  background-color: rgb(31 41 55);
+  color: #f9fafb;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: all 0.3s;
+  border: 1px solid rgb(55 65 81);
+}
+
+.btn-secondary:hover {
+  background-color: rgb(55 65 81);
+}
+
+.card {
+  background-color: rgba(17, 24, 39, 0.5);
+  border: 1px solid rgb(31 41 55);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  backdrop-filter: blur(12px);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(55 65 81);
+  background-color: rgb(17 24 39);
+  color: #f9fafb;
+  transition: all 0.3s;
+}
+
+.input-field::placeholder {
+  color: rgb(107 114 128);
+}
+
+.input-field:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #00ffff;
+  border-color: transparent;
+  box-shadow: 0 0 0 2px #00ffff;
+}
+
+.accent-text {
+  color: #00ffff;
+}
+
+.accent-gradient {
+  background: linear-gradient(to right, #00ffff, #00cccc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+.border-accent {
+  border-color: #00ffff;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
 }
