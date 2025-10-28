@@ -1,0 +1,13 @@
+<!-- Placeholder for icon-192.png -->
+<!-- Create a 192x192px PNG icon with Aurora/Moon theme -->
+<!-- You can use tools like: -->
+<!-- - Canva: https://canva.com -->
+<!-- - Figma: https://figma.com -->
+<!-- - DALL-E: Generate an icon -->
+<!-- 
+Suggested design:
+- Dark purple/blue gradient background
+- Crescent moon icon in center
+- Star sparkles around it
+- Aurora-like gradient effects
+-->
