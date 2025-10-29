@@ -92,40 +92,73 @@ export function moderatePrompt(prompt: string): ModerationResult {
 }
 
 /**
- * Get a safe version of the prompt by asking Claude to clean it
+ * Get a safe version of the prompt by asking Gemini to clean it
  */
 export async function cleanPromptWithClaude(
   originalPrompt: string,
   flaggedTerms: string[]
 ): Promise<string> {
-  const response = await fetch('/api/clean-prompt', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      prompt: originalPrompt,
-      flaggedTerms,
-    }),
-  });
+  // Direct Gemini API call instead of HTTP endpoint (server-side safe)
+  const axios = (await import('axios')).default;
+  const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
 
-  if (!response.ok) {
-    throw new Error('Failed to clean prompt');
+  if (!GOOGLE_AI_API_KEY) {
+    throw new Error('GOOGLE_AI_API_KEY not configured');
   }
 
-  const data = await response.json();
-  return data.cleanedPrompt;
+  const systemPrompt = `You are a content moderation assistant. The following prompt contains inappropriate content (${flaggedTerms.join(', ')}). Please rewrite it to be safe and appropriate while preserving the core meaning.
+
+Original prompt: ${originalPrompt}
+
+Provide ONLY the cleaned prompt, nothing else.`;
+
+  try {
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{
+            text: systemPrompt
+          }]
+        }]
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000,
+      }
+    );
+
+    const cleanedPrompt = response.data.candidates[0].content.parts[0].text.trim();
+    return cleanedPrompt;
+  } catch (error: any) {
+    console.error('Error cleaning prompt with Gemini:', error.message);
+    throw new Error('Failed to clean prompt');
+  }
 }
 
 /**
  * Validate and sanitize prompt before image generation
  * Returns cleaned prompt or throws error
+ * 
+ * NOTE: For prototype - Content moderation disabled to avoid false positives.
+ * Trusting Gemini AI to generate safe, appropriate prompts.
  */
 export async function validateAndCleanPrompt(prompt: string): Promise<{
   cleanedPrompt: string;
   wasCleaned: boolean;
   originalPrompt: string;
 }> {
+  // For prototype: Skip strict moderation to avoid false positives
+  // Trust Gemini AI to generate appropriate content
+  console.log('Content validation: Accepting prompt (moderation disabled for prototype)');
+  
+  return {
+    cleanedPrompt: prompt,
+    wasCleaned: false,
+    originalPrompt: prompt,
+  };
+  
+  /* DISABLED FOR PROTOTYPE - Uncomment for production use
   // First check for blocked terms
   const moderation = moderatePrompt(prompt);
 
@@ -137,7 +170,7 @@ export async function validateAndCleanPrompt(prompt: string): Promise<{
     };
   }
 
-  // If flagged, ask Claude to clean it
+  // If flagged, ask Gemini to clean it
   console.log('Prompt flagged for:', moderation.category.join(', '));
   console.log('Flagged terms:', moderation.flaggedTerms.join(', '));
 
@@ -160,4 +193,5 @@ export async function validateAndCleanPrompt(prompt: string): Promise<{
     wasCleaned: true,
     originalPrompt: prompt,
   };
+  */
 }

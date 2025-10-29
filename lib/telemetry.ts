@@ -35,16 +35,27 @@ export function calculateCost(
  */
 export async function logGeneration(data: TelemetryLog): Promise<void> {
   try {
-    const response = await fetch('/api/telemetry/log', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+    // Direct Supabase insert instead of HTTP call (server-side safe)
+    const { supabaseAdmin } = await import('@/lib/supabase-admin');
+    
+    if (!supabaseAdmin) {
+      console.error('Supabase admin client not available');
+      return;
+    }
+    
+    const { error } = await supabaseAdmin
+      .from('telemetry')
+      .insert({
+        user_id: data.userId,
+        generator: data.generator,
+        time_ms: data.timeMs,
+        cost: data.cost,
+        success: data.success,
+        error_message: data.errorMessage,
+      });
 
-    if (!response.ok) {
-      console.error('Failed to log telemetry:', await response.text());
+    if (error) {
+      console.error('Failed to log telemetry:', error);
     }
   } catch (error) {
     console.error('Telemetry logging error:', error);

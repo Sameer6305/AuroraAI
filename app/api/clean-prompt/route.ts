@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genai = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
+import axios from 'axios';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +9,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing prompt' },
         { status: 400 }
+      );
+    }
+
+    const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+    if (!GOOGLE_AI_API_KEY) {
+      return NextResponse.json(
+        { error: 'AI service not configured' },
+        { status: 503 }
       );
     }
 
@@ -31,9 +37,24 @@ Original prompt: "${prompt}"
 
 Rewrite this as a safe, appropriate image generation prompt:`;
 
-    const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(systemPrompt);
-    const cleanedPrompt = result.response.text().trim();
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{
+            text: systemPrompt
+          }]
+        }]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000
+      }
+    );
+    
+    const cleanedPrompt = response.data.candidates[0].content.parts[0].text.trim();
 
     return NextResponse.json({
       cleanedPrompt,

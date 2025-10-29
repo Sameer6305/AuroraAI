@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { validateAndCleanPrompt } from "@/lib/content-moderation";
 import { logGeneration, calculateCost } from "@/lib/telemetry";
-
-// Initialize Google Generative AI client (FREE - Gemini 1.5 Flash)
-const genai = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
 interface UserAnswers {
   activities: string;
@@ -31,10 +27,13 @@ export async function POST(request: NextRequest) {
   try {
     const userAnswers: UserAnswers = await request.json();
     
+    console.log('Received submission:', { ...userAnswers, activities: userAnswers.activities?.substring(0, 50) + '...' });
+    
     // Validate required fields
     const { activities, mood, challenges, achievements, theme } = userAnswers;
     
     if (!activities || !mood || !challenges || !achievements || !theme) {
+      console.error('Missing fields:', { activities: !!activities, mood: !!mood, challenges: !!challenges, achievements: !!achievements, theme: !!theme });
       return NextResponse.json(
         { error: "Missing required fields: activities, mood, challenges, achievements, theme" },
         { status: 400 }
@@ -43,14 +42,42 @@ export async function POST(request: NextRequest) {
 
     // Check if Supabase is configured
     if (!supabaseAdmin) {
+      console.error('Supabase not configured!');
       return NextResponse.json(
         { error: "Database not configured. Please set SUPABASE environment variables." },
         { status: 503 }
       );
     }
 
-    // Step 1: Find or create user
-    if (userAnswers.email) {
+    // Step 1: Get authenticated user from Supabase Auth or use anonymous ID
+    const authHeader = request.headers.get('authorization');
+    
+    if (authHeader) {
+      // Try to get authenticated user
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      
+      if (user && !authError) {
+        userId = user.id;
+        console.log('Authenticated user:', userId);
+      } else {
+        console.log('Auth token invalid, creating anonymous user');
+        // Create anonymous user in database
+        const { data: anonUser, error: anonError } = await supabaseAdmin
+          .from("users")
+          .insert({ email: `anon-${crypto.randomUUID()}@temp.local` })
+          .select("id")
+          .single();
+        
+        if (anonError || !anonUser) {
+          console.error("Error creating anonymous user:", anonError);
+          throw new Error("Failed to create user session");
+        }
+        userId = anonUser.id;
+        console.log('Created anonymous user:', userId);
+      }
+    } else if (userAnswers.email) {
+      // Legacy: Find or create user by email
       const { data: existingUser } = await supabaseAdmin
         .from("users")
         .select("id")
@@ -59,6 +86,7 @@ export async function POST(request: NextRequest) {
 
       if (existingUser) {
         userId = existingUser.id;
+        console.log('Found existing user by email:', userId);
       } else {
         const { data: newUser, error: userError } = await supabaseAdmin
           .from("users")
@@ -68,13 +96,27 @@ export async function POST(request: NextRequest) {
 
         if (userError || !newUser) {
           console.error("Error creating user:", userError);
-          userId = crypto.randomUUID();
+          throw new Error("Failed to create user account");
         } else {
           userId = newUser.id;
+          console.log('Created new user:', userId);
         }
       }
     } else {
-      userId = crypto.randomUUID();
+      // Anonymous user - create in database
+      console.log('Creating anonymous user in database...');
+      const { data: anonUser, error: anonError } = await supabaseAdmin
+        .from("users")
+        .insert({ email: `anon-${crypto.randomUUID()}@temp.local` })
+        .select("id")
+        .single();
+      
+      if (anonError || !anonUser) {
+        console.error("Error creating anonymous user:", anonError);
+        throw new Error("Failed to create user session");
+      }
+      userId = anonUser.id;
+      console.log('Anonymous user created:', userId);
     }
 
     // Step 1.5: Check daily generation limit (2 per day)
@@ -125,34 +167,121 @@ export async function POST(request: NextRequest) {
 
     const responseId = dailyResponse.id;
 
-    // Step 3: Send to Claude Sonnet 4.5 with system prompt
+    // Step 3: Send to Gemini with system prompt
     const claudeStartTime = Date.now();
-    const systemPrompt = `You are an AI Reflection Agent that turns a user's daily reflection into an image concept.
+    
+    // Validate Google AI API Key
+    if (!process.env.GOOGLE_AI_API_KEY) {
+      console.error('GOOGLE_AI_API_KEY not set!');
+      return NextResponse.json(
+        { error: "AI service not configured. Please set GOOGLE_AI_API_KEY." },
+        { status: 503 }
+      );
+    }
+    
+    const systemPrompt = `You are an AI Reflection Agent that transforms daily reflections into stunning visual art concepts.
 
-Use the input JSON to understand their mood, activities, and vibe of yesterday.
-Return only a JSON object:
+Analyze the user's activities, mood, challenges, and achievements to create a deeply personalized image that captures their day's essence.
+
+Return ONLY a JSON object (no markdown, no explanation):
 
 {
-  "prompt": "Detailed image description (2–4 cinematic sentences, emotional, 9:16 wallpaper)",
-  "generator": "Imagen-3" or "Midjourney",
-  "style": "anime" | "realistic" | "cyberpunk" | "minimalist",
+  "prompt": "Detailed visual scene description (3-5 sentences, cinematic, emotional, highly specific)",
+  "generator": "Stable-Diffusion",
+  "style": "anime" | "realistic" | "cyberpunk" | "minimalist" | "futuristic",
   "size": "2048x3620",
-  "vibe": "short summary like 'hopeful and calm'"
+  "vibe": "2-4 word emotional summary"
 }
 
-Rules:
-- Use Stable Diffusion for all images (it's free and versatile).
-- For anime themes, consider Naruto or One Piece style elements.
-- Create original characters (no copyrighted likeness).
-- Include lighting, emotion, setting, and colors.
-Output ONLY JSON, no markdown, no explanation.`;
+CRITICAL RULES FOR GENERATING PROMPTS:
 
-    // Use Gemini 1.5 Flash (FREE) instead of Claude
-    const model = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(
-      `${systemPrompt}\n\nUser reflection: ${JSON.stringify(userAnswers)}`
-    );
-    const responseText = result.response.text();
+1. **Extract Context from User Data:**
+   - If they mention studying/engineering/coding → show tech workspace, books, computers, focused environment
+   - If they mention exercise/jogging → include fitness elements, outdoor scenes, active poses
+   - If they mention cooking → kitchen scenes, food preparation, warm lighting
+   - If they mention team/friends → group settings, collaborative spaces
+   - If they mention nature/walks → outdoor scenery, natural elements
+   - Match time of day (morning/evening) to lighting in the scene
+
+2. **Mood Translation:**
+   - "tired but satisfied" → peaceful evening scene, accomplishment atmosphere
+   - "overwhelmed" → dynamic, busy background with calming foreground
+   - "motivated" → energetic, forward-looking composition with bright lighting
+   - "calm" → serene, minimalist, soft colors and gentle lighting
+
+3. **Theme Adaptations:**
+   - **anime/naruto**: Create ORIGINAL characters in anime style (never use copyrighted characters), use dynamic poses, vibrant colors
+   - **realistic**: Photorealistic environments matching activities, natural lighting, authentic details
+   - **cyberpunk**: Neon lights, futuristic tech, urban nightscape, holographic elements
+   - **minimalist**: Clean lines, limited color palette, negative space, simple geometric shapes
+   - **futuristic**: Sci-fi elements, advanced technology, sleek design, innovative concepts
+
+4. **Composition for 9:16 Mobile Wallpaper:**
+   - Vertical orientation emphasis
+   - Subject in lower 2/3 for status bar clearance
+   - Depth and layers for visual interest
+   - Strong focal point with atmospheric background
+
+5. **Quality Keywords to Include:**
+   - Lighting: "golden hour", "soft ambient light", "dramatic shadows", "ethereal glow"
+   - Detail: "highly detailed", "intricate", "professional photography", "cinematic"
+   - Mood: specific emotional descriptors that match user's feelings
+   - Environment: specific locations relevant to their activities
+
+6. **Avoid:**
+   - Generic descriptions
+   - Copyright characters or celebrities
+   - Violent or inappropriate content
+   - Vague or abstract concepts without grounding
+
+Example: If user studied engineering and felt accomplished:
+"A cozy study corner bathed in warm evening light, scattered engineering textbooks and a glowing laptop displaying circuit diagrams, coffee mug steaming beside handwritten notes, through the window a peaceful sunset cityscape, atmosphere of quiet satisfaction and intellectual achievement, highly detailed, cinematic depth of field"
+
+Output ONLY the JSON object.`;
+
+    // Use Gemini via REST API (correct v1beta endpoint)
+    console.log('Calling Gemini to generate image prompt...');
+    const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+    
+    if (!GOOGLE_AI_API_KEY) {
+      console.error('GOOGLE_AI_API_KEY not set!');
+      return NextResponse.json(
+        { error: "AI service not configured. Please set GOOGLE_AI_API_KEY." },
+        { status: 503 }
+      );
+    }
+    
+    let result;
+    let responseText: string;
+    try {
+      // Try gemini-2.5-flash-lite first (lighter load), fallback to main model
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_AI_API_KEY}`,
+        {
+          contents: [{
+            parts: [{
+              text: `${systemPrompt}\n\nUser reflection: ${JSON.stringify(userAnswers)}`
+            }]
+          }]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000
+        }
+      );
+      
+      responseText = response.data.candidates[0].content.parts[0].text;
+      console.log('Gemini response received, length:', responseText.length);
+    } catch (geminiError: any) {
+      console.error('Gemini API error:', geminiError);
+      console.error('Error response:', geminiError.response?.data);
+      return NextResponse.json(
+        { error: `AI service error: ${geminiError.message || 'Failed to generate prompt'}` },
+        { status: 503 }
+      );
+    }
 
     // Step 4: Parse Gemini's response
     const claudeEndTime = Date.now();
@@ -225,16 +354,39 @@ Output ONLY JSON, no markdown, no explanation.`;
       );
     }
 
-    // Step 4.6: Refine prompt for cinematic quality
+    // Step 4.6: Refine prompt for cinematic quality with Stable Diffusion optimization
     let refinedPrompt: string;
     try {
-      const refinementModel = genai.getGenerativeModel({ model: "gemini-1.5-flash" });
-      const refinementResult = await refinementModel.generateContent(
-        `Refine this image prompt for higher cinematic detail and emotional tone, max 3 sentences, 9:16 mobile wallpaper:
-${finalPrompt}
-Output only refined prompt.`
+      const refinementResponse = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_AI_API_KEY}`,
+        {
+          contents: [{
+            parts: [{
+              text: `Enhance this Stable Diffusion XL prompt for maximum visual quality and emotional impact:
+
+Original: ${finalPrompt}
+
+Add these elements while keeping it concise (3-4 sentences max):
+- Specific lighting details (time of day, light quality, shadows)
+- Camera perspective and depth of field
+- Texture and material details
+- Atmospheric effects and mood enhancement
+- Color palette specifics
+- Quality tags: "highly detailed", "professional", "cinematic composition", "8k quality"
+
+Keep the core concept but make it more visually specific and emotionally resonant.
+Output ONLY the enhanced prompt, no explanation.`
+            }]
+          }]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000
+        }
       );
-      refinedPrompt = refinementResult.response.text().trim();
+      refinedPrompt = refinementResponse.data.candidates[0].content.parts[0].text.trim();
       console.log('Prompt refined for quality');
       console.log('Original:', finalPrompt);
       console.log('Refined:', refinedPrompt);
@@ -312,6 +464,7 @@ Output only refined prompt.`
 
   } catch (error) {
     console.error("Error processing submission:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
     
     // Try to log error to telemetry if userId is available
     if (typeof userId !== 'undefined') {
@@ -330,7 +483,7 @@ Output only refined prompt.`
     }
     
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: error instanceof Error ? error.message : "Internal server error" },
       { status: 500 }
     );
   }
@@ -343,26 +496,42 @@ async function generateWithStableDiffusion(prompt: string): Promise<string> {
   try {
     const HF_API_KEY = process.env.HUGGINGFACE_API_KEY || "";
     
+    if (!HF_API_KEY) {
+      throw new Error("HUGGINGFACE_API_KEY not configured");
+    }
+    
+    console.log('Calling Stable Diffusion API...');
+    console.log('Prompt:', prompt.substring(0, 100) + '...');
+    
     // Use Stable Diffusion XL (free on Hugging Face)
+    // Updated to new Inference Providers endpoint (Nov 2025)
     const response = await axios.post(
-      "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+      "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0",
       { inputs: prompt },
       {
         headers: {
           Authorization: `Bearer ${HF_API_KEY}`,
           "Content-Type": "application/json",
+          "Accept": "image/png", // Required by new endpoint
         },
         responseType: "arraybuffer",
+        timeout: 60000, // 60 second timeout
       }
     );
+
+    console.log('Stable Diffusion response received, size:', response.data.length);
 
     // Convert to base64
     const base64Image = Buffer.from(response.data).toString("base64");
     return `data:image/png;base64,${base64Image}`;
 
-  } catch (error) {
-    console.error("Error generating with Stable Diffusion:", error);
-    throw new Error("Failed to generate image with Stable Diffusion");
+  } catch (error: any) {
+    console.error("Error generating with Stable Diffusion:", error.message);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data?.toString());
+    }
+    throw new Error(`Failed to generate image: ${error.message}`);
   }
 }
 
