@@ -27,7 +27,9 @@ export default function RootLayout({
       >
         <ServiceWorkerRegistration />
         <Navigation />
-        {children}
+        <div className="pt-20">
+          {children}
+        </div>
       </body>
     </html>
   );
