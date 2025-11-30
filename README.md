@@ -369,7 +369,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-**Pranav Kadam** - [@Sameer6305](https://github.com/Sameer6305)
+**Sameer Kadam** - [@Sameer6305](https://github.com/Sameer6305)
 
 Project Link: [https://github.com/Sameer6305/AuroraAI](https://github.com/Sameer6305/AuroraAI)
 
