@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 
+const EMOTION_EMOJIS: Record<string, string> = {
+  happy: '😊', calm: '😌', motivated: '🔥', grateful: '🙏',
+  stressed: '😰', anxious: '😟', overwhelmed: '🤯', tired: '😴',
+  sad: '😢', frustrated: '😤', neutral: '😐', confident: '💪',
+  excited: '🎉', reflective: '🤔',
+};
+
 export default async function HistoryPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -39,7 +46,7 @@ export default async function HistoryPage() {
             Back to Reflect
           </Link>
           <h1 className="text-4xl font-bold mb-2 accent-gradient">Reflection History</h1>
-          <p className="text-gray-400">Review your past reflections and track your progress</p>
+          <p className="text-gray-400">Review your past reflections and emotional journey</p>
         </div>
 
         {reflections && reflections.length > 0 ? (
@@ -51,6 +58,9 @@ export default async function HistoryPage() {
                 month: 'short',
                 day: 'numeric'
               });
+              const resp = reflection.response as any;
+              const emotion = reflection.detected_emotion || image?.emotion;
+              const detectedTheme = reflection.detected_theme || image?.theme;
 
               return (
                 <Link
@@ -71,20 +81,35 @@ export default async function HistoryPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between items-start">
                       <h3 className="text-lg font-semibold line-clamp-1">
-                        {reflection.theme || "Daily Reflection"}
+                        {resp?.theme || "Daily Reflection"}
                       </h3>
                       <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
                         {date}
                       </span>
                     </div>
-                    {reflection.mood && (
-                      <span className="inline-block px-3 py-1 rounded-full bg-accent/20 text-accent text-sm">
-                        {reflection.mood}
+
+                    {/* Emotion + Theme badges */}
+                    <div className="flex flex-wrap gap-2">
+                      {emotion && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/15 text-accent text-xs font-medium">
+                          {EMOTION_EMOJIS[emotion] || '•'} {emotion}
+                        </span>
+                      )}
+                      {detectedTheme && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 text-xs">
+                          📌 {detectedTheme}
+                        </span>
+                      )}
+                    </div>
+
+                    {resp?.mood && (
+                      <span className="inline-block px-3 py-1 rounded-full bg-white/5 text-gray-400 text-sm border border-gray-700/30">
+                        Mood: {resp.mood}
                       </span>
                     )}
-                    {reflection.vibe && (
-                      <p className="text-sm text-gray-400 line-clamp-2">
-                        {reflection.vibe}
+                    {image?.vibe && (
+                      <p className="text-sm text-gray-400 line-clamp-2 italic">
+                        &ldquo;{image.vibe}&rdquo;
                       </p>
                     )}
                   </div>

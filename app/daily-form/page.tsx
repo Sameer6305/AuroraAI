@@ -45,8 +45,21 @@ export default function DailyFormPage() {
 
       if (response.ok) {
         console.log("Form submitted successfully");
-        // Redirect to result page with imageUrl and vibe
-        router.push(`/result?imageUrl=${encodeURIComponent(data.imageUrl)}&vibe=${encodeURIComponent(data.vibe)}`);
+        // Redirect to result page with all enriched data
+        const params = new URLSearchParams({
+          imageUrl: data.imageUrl || '',
+          vibe: data.vibe || '',
+          emotion: data.emotion || '',
+          emotionConfidence: String(data.emotionConfidence || 0),
+          theme: data.theme || '',
+          secondaryEmotion: data.secondaryEmotion || '',
+          imageId: data.imageId || '',
+          responseId: data.responseId || '',
+        });
+        if (data.explanation) {
+          params.set('explanation', encodeURIComponent(JSON.stringify(data.explanation)));
+        }
+        router.push(`/result?${params.toString()}`);
       } else {
         console.error("Submission failed:", data.error);
         alert(`Error: ${data.error}`);

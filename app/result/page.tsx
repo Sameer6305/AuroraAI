@@ -4,14 +4,49 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useState, Suspense } from "react";
 import Image from "next/image";
 
+// ─── Emotion Badge Colors ───────────────────────────────────────
+const EMOTION_COLORS: Record<string, string> = {
+  happy: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40',
+  calm: 'bg-blue-400/20 text-blue-300 border-blue-400/40',
+  motivated: 'bg-red-500/20 text-red-300 border-red-500/40',
+  grateful: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  stressed: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+  anxious: 'bg-teal-500/20 text-teal-300 border-teal-500/40',
+  overwhelmed: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+  tired: 'bg-gray-500/20 text-gray-300 border-gray-500/40',
+  sad: 'bg-blue-600/20 text-blue-400 border-blue-600/40',
+  frustrated: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+  neutral: 'bg-gray-400/20 text-gray-300 border-gray-400/40',
+  confident: 'bg-purple-400/20 text-purple-300 border-purple-400/40',
+  excited: 'bg-pink-500/20 text-pink-300 border-pink-500/40',
+  reflective: 'bg-amber-400/20 text-amber-300 border-amber-400/40',
+};
+
 function ResultContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const imageUrl = searchParams.get("imageUrl") || "/placeholder-reflection.png";
   const vibe = searchParams.get("vibe") || "Your reflection has been generated with care and insight.";
+  const emotion = searchParams.get("emotion") || '';
+  const emotionConfidence = parseFloat(searchParams.get("emotionConfidence") || '0');
+  const theme = searchParams.get("theme") || '';
+  const secondaryEmotion = searchParams.get("secondaryEmotion") || '';
+  const imageId = searchParams.get("imageId") || '';
+  const responseId = searchParams.get("responseId") || '';
+  
+  // Parse explanation from URL (passed as JSON)
+  let explanation: Record<string, string> | null = null;
+  try {
+    const expStr = searchParams.get("explanation");
+    if (expStr) explanation = JSON.parse(decodeURIComponent(expStr));
+  } catch { /* no explanation */ }
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -26,21 +61,34 @@ function ResultContent() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
-      // Show success message
       setDownloadSuccess(true);
       setTimeout(() => setDownloadSuccess(false), 3000);
-    } catch (error) {
-      console.error("Download failed:", error);
+    } catch {
       alert("Failed to download image. Please try again.");
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const handleGenerateAgain = () => {
-    router.push("/daily-form");
+  const handleFeedback = async (rating: string) => {
+    setFeedback(rating);
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageId, responseId, rating }),
+      });
+      const data = await res.json();
+      setFeedbackMessage(data.message || 'Thanks for your feedback!');
+      setFeedbackSubmitted(true);
+    } catch {
+      setFeedbackMessage('Could not save feedback, but thanks for letting us know!');
+      setFeedbackSubmitted(true);
+    }
   };
+
+  const confPct = Math.round(emotionConfidence * 100);
+  const emotionBadge = EMOTION_COLORS[emotion] || EMOTION_COLORS.neutral;
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-[#0a0a0a] via-[#0e0e0e] to-[#1a1a1a]">
@@ -57,36 +105,166 @@ function ResultContent() {
 
         {/* Main Content Card */}
         <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          {/* Subtle glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent rounded-2xl pointer-events-none"></div>
 
-          {/* Image Section */}
-          <div className="relative w-full aspect-square sm:aspect-video bg-black/40 flex items-center justify-center overflow-hidden">
+          {/* Emotion + Theme Badges */}
+          {emotion && (
+            <div className="px-6 pt-6 flex flex-wrap items-center gap-3">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${emotionBadge}`}>
+                <span className="w-2 h-2 rounded-full bg-current opacity-70"></span>
+                {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+                {confPct > 0 && <span className="text-xs opacity-60">({confPct}%)</span>}
+              </span>
+              {secondaryEmotion && (
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs border ${EMOTION_COLORS[secondaryEmotion] || EMOTION_COLORS.neutral}`}>
+                  + {secondaryEmotion}
+                </span>
+              )}
+              {theme && (
+                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-white/5 text-gray-400 border border-gray-700/50">
+                  📌 {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Image */}
+          <div className="relative w-full aspect-square sm:aspect-video bg-black/40 flex items-center justify-center overflow-hidden mt-4 mx-4 rounded-lg" style={{margin: '1rem'}}>
             <Image
               src={imageUrl}
               alt="Generated Reflection"
               fill
               className="object-contain"
               priority
-              onError={(e) => {
-                e.currentTarget.src = "/placeholder.svg";
-              }}
+              onError={(e) => { e.currentTarget.src = "/placeholder.svg"; }}
             />
           </div>
 
-          {/* Content Section */}
+          {/* Content */}
           <div className="p-6 sm:p-8 space-y-6">
-            {/* Vibe Text */}
+            {/* Vibe */}
             <div className="space-y-2">
               <h2 className="text-xl font-semibold text-gray-300">Reflection Vibe</h2>
               <p className="text-gray-400 leading-relaxed text-lg italic">
-                "{vibe}"
+                &ldquo;{vibe}&rdquo;
               </p>
             </div>
 
+            {/* ─── Feedback Section (Feature #4) ─────────────────── */}
+            {imageId && !feedbackSubmitted && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3">
+                <h3 className="text-lg font-semibold text-gray-300">
+                  Does this image represent your day?
+                </h3>
+                <p className="text-sm text-gray-500">Your feedback helps us personalize future generations</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleFeedback('yes')}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all border ${
+                      feedback === 'yes' ? 'bg-green-500/20 border-green-500 text-green-300' : 'bg-white/5 border-gray-700/50 text-gray-400 hover:border-green-500/50 hover:text-green-300'
+                    }`}
+                  >
+                    ✅ Yes
+                  </button>
+                  <button
+                    onClick={() => handleFeedback('partially')}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all border ${
+                      feedback === 'partially' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-300' : 'bg-white/5 border-gray-700/50 text-gray-400 hover:border-yellow-500/50 hover:text-yellow-300'
+                    }`}
+                  >
+                    🤔 Partially
+                  </button>
+                  <button
+                    onClick={() => handleFeedback('no')}
+                    className={`flex-1 py-3 rounded-lg font-medium transition-all border ${
+                      feedback === 'no' ? 'bg-red-500/20 border-red-500 text-red-300' : 'bg-white/5 border-gray-700/50 text-gray-400 hover:border-red-500/50 hover:text-red-300'
+                    }`}
+                  >
+                    ❌ No
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {feedbackSubmitted && (
+              <div className="bg-accent/10 border border-accent/30 rounded-xl p-4 text-center">
+                <p className="text-accent font-medium">{feedbackMessage}</p>
+              </div>
+            )}
+
+            {/* ─── Explainability Section (Feature #2) ───────────── */}
+            {explanation && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setShowExplanation(!showExplanation)}
+                  className="flex items-center gap-2 text-accent hover:text-accent/80 transition-colors font-medium"
+                >
+                  <svg className={`w-4 h-4 transition-transform ${showExplanation ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  🧠 Explain this image
+                </button>
+
+                {showExplanation && (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4 animate-fade-in">
+                    <h3 className="text-lg font-semibold text-gray-200 flex items-center gap-2">
+                      <span className="text-accent">🔍</span> How your image was created
+                    </h3>
+
+                    {explanation.input_summary && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">What you shared</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.input_summary}</p>
+                      </div>
+                    )}
+
+                    {explanation.detected_emotion && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Emotion Analysis</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.detected_emotion}</p>
+                      </div>
+                    )}
+
+                    {explanation.detected_theme && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Theme Detection</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.detected_theme}</p>
+                      </div>
+                    )}
+
+                    {explanation.prompt_reasoning && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Prompt Design</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.prompt_reasoning}</p>
+                      </div>
+                    )}
+
+                    {explanation.style_reasoning && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Visual Style</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.style_reasoning}</p>
+                      </div>
+                    )}
+
+                    {explanation.color_mood_reasoning && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Color & Mood</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.color_mood_reasoning}</p>
+                      </div>
+                    )}
+
+                    {explanation.composition_notes && (
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wide">Composition</h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">{explanation.composition_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="grid grid-cols-1 gap-4">
-              {/* Download Button */}
               <button
                 onClick={handleDownload}
                 disabled={isDownloading}
@@ -102,45 +280,29 @@ function ResultContent() {
                       Downloading...
                     </>
                   ) : downloadSuccess ? (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Downloaded!
-                    </>
+                    <>✅ Downloaded!</>
                   ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Download Wallpaper
-                    </>
+                    <>📥 Download Wallpaper</>
                   )}
                 </span>
               </button>
             </div>
 
-            {/* Download hint */}
             <p className="text-center text-gray-500 text-sm">
-              Download the image and set it as your wallpaper manually
+              Download the image and set it as your wallpaper
             </p>
 
-            {/* Generate Again Button */}
             <button
-              onClick={handleGenerateAgain}
-              className="w-full py-3 px-6 bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 text-foreground font-semibold rounded-lg transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/20 hover:scale-[1.01] active:scale-[0.99]"
+              onClick={() => router.push("/daily-form")}
+              className="w-full py-3 px-6 bg-gradient-to-r from-gray-800 to-gray-900 border border-gray-700 text-foreground font-semibold rounded-lg transition-all duration-300 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/20"
             >
               <span className="flex items-center justify-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Generate Again
+                🔄 Generate Again
               </span>
             </button>
           </div>
         </div>
 
-        {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-6">
           Save your reflection or create a new one to continue your journey
         </p>

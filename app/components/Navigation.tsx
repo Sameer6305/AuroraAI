@@ -52,6 +52,9 @@ export default function Navigation() {
             <Link href="/history" className="text-gray-300 hover:text-accent transition-colors">
               History
             </Link>
+            <Link href="/insights" className="text-gray-300 hover:text-accent transition-colors">
+              Insights
+            </Link>
             <Link href="/result" className="text-gray-300 hover:text-accent transition-colors">
               Results
             </Link>
