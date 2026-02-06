@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import EmotionBadge from "../components/EmotionBadge";
+import EmptyState from "../components/EmptyState";
 
 const EMOTION_EMOJIS: Record<string, string> = {
   happy: '😊', calm: '😌', motivated: '🔥', grateful: '🙏',
@@ -34,97 +36,113 @@ export default async function HistoryPage() {
 
   return (
     <div className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <Link 
-            href="/daily-form" 
-            className="inline-flex items-center gap-2 text-gray-400 hover:text-accent transition-colors mb-4"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Reflect
-          </Link>
-          <h1 className="text-4xl font-bold mb-2 accent-gradient">Reflection History</h1>
-          <p className="text-gray-400">Review your past reflections and emotional journey</p>
+          <h1 className="text-4xl font-bold mb-2 text-gray-100">Reflection Timeline</h1>
+          <p className="text-gray-400">Your emotional journey, visualized</p>
         </div>
 
         {reflections && reflections.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reflections.map((reflection: any) => {
-              const image = reflection.generated_images?.[0];
-              const date = new Date(reflection.created_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-              });
-              const resp = reflection.response as any;
-              const emotion = reflection.detected_emotion || image?.emotion;
-              const detectedTheme = reflection.detected_theme || image?.theme;
+          <div className="relative">
+            {/* Timeline line */}
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-accent/50 via-accent/20 to-transparent"></div>
+            
+            <div className="space-y-8">
+              {reflections.map((reflection: any) => {
+                const image = reflection.generated_images?.[0];
+                const date = new Date(reflection.created_at);
+                const dateStr = date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                });
+                const timeStr = date.toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit'
+                });
+                const resp = reflection.response as any;
+                const emotion = reflection.detected_emotion || image?.emotion;
+                const detectedTheme = reflection.detected_theme || image?.theme;
 
-              return (
-                <Link
-                  key={reflection.id}
-                  href={`/result?id=${reflection.id}`}
-                  className="card hover:border-accent/50 transition-all group overflow-hidden"
-                >
-                  {image && (
-                    <div className="relative w-full h-48 mb-4 rounded-lg overflow-hidden bg-gray-800">
-                      <Image
-                        src={image.image_url}
-                        alt={reflection.theme || "Reflection image"}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h3 className="text-lg font-semibold line-clamp-1">
-                        {resp?.theme || "Daily Reflection"}
-                      </h3>
-                      <span className="text-xs text-gray-400 whitespace-nowrap ml-2">
-                        {date}
-                      </span>
-                    </div>
+                return (
+                  <div key={reflection.id} className="relative pl-20">
+                    {/* Timeline dot */}
+                    <div className="absolute left-6 top-6 w-5 h-5 rounded-full bg-accent border-4 border-[#0e0e0e] z-10"></div>
+                    
+                    <Link
+                      href={`/result?id=${reflection.id}`}
+                      className="block backdrop-blur-xl bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 transition-all group"
+                    >
+                      <div className="flex flex-col sm:flex-row gap-4 p-4">
+                        {/* Image */}
+                        {image && (
+                          <div className="relative w-full sm:w-48 h-48 flex-shrink-0 rounded-lg overflow-hidden bg-black/40">
+                            <Image
+                              src={image.image_url}
+                              alt={reflection.theme || "Reflection image"}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          </div>
+                        )}
+                        
+                        {/* Content */}
+                        <div className="flex-1 space-y-3">
+                          <div className="flex justify-between items-start gap-4">
+                            <div>
+                              <h3 className="text-lg font-semibold text-gray-200 group-hover:text-accent transition-colors">
+                                {resp?.theme || "Daily Reflection"}
+                              </h3>
+                              <p className="text-sm text-gray-500">
+                                {dateStr} at {timeStr}
+                              </p>
+                            </div>
+                          </div>
 
-                    {/* Emotion + Theme badges */}
-                    <div className="flex flex-wrap gap-2">
-                      {emotion && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/15 text-accent text-xs font-medium">
-                          {EMOTION_EMOJIS[emotion] || '•'} {emotion}
-                        </span>
-                      )}
-                      {detectedTheme && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 text-xs">
-                          📌 {detectedTheme}
-                        </span>
-                      )}
-                    </div>
+                          {/* Emotion + Theme badges */}
+                          <div className="flex flex-wrap gap-2">
+                            {emotion && (
+                              <EmotionBadge 
+                                emotion={emotion} 
+                                size="sm"
+                                showConfidence={false}
+                              />
+                            )}
+                            {detectedTheme && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-300 text-xs border border-purple-500/30">
+                                📌 {detectedTheme}
+                              </span>
+                            )}
+                          </div>
 
-                    {resp?.mood && (
-                      <span className="inline-block px-3 py-1 rounded-full bg-white/5 text-gray-400 text-sm border border-gray-700/30">
-                        Mood: {resp.mood}
-                      </span>
-                    )}
-                    {image?.vibe && (
-                      <p className="text-sm text-gray-400 line-clamp-2 italic">
-                        &ldquo;{image.vibe}&rdquo;
-                      </p>
-                    )}
+                          {image?.vibe && (
+                            <p className="text-sm text-gray-400 line-clamp-2 italic">
+                              &ldquo;{image.vibe}&rdquo;
+                            </p>
+                          )}
+
+                          {resp?.mood && (
+                            <span className="inline-block text-xs text-gray-500">
+                              Mood: {resp.mood}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
                   </div>
-                </Link>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         ) : (
-          <div className="text-center py-12 card">
-            <div className="text-6xl mb-4">📝</div>
-            <p className="text-gray-400 text-lg mb-4">No Reflections Yet</p>
-            <p className="text-gray-500 mb-6">Start your journey by creating your first daily reflection</p>
-            <Link href="/daily-form" className="btn-primary inline-block">
-              Create Your First Reflection
-            </Link>
+          <div className="backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-8">
+            <EmptyState
+              icon="📝"
+              title="No Reflections Yet"
+              description="Start your journey by creating your first daily reflection"
+              actionLabel="Create Your First Reflection"
+              actionHref="/daily-form"
+            />
           </div>
         )}
       </div>
