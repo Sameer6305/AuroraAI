@@ -189,6 +189,101 @@ AuroraAI/
 └── middleware.ts                      # Route-level auth middleware
 ```
 
+## 🔐 Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GOOGLE_AI_API_KEY` | Google Gemini API key | ✅ |
+| `HUGGINGFACE_API_KEY` | Hugging Face API token | ✅ |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL | ✅ |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key | ✅ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | ✅ |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key for push | ✅ |
+| `VAPID_PRIVATE_KEY` | VAPID private key | ✅ |
+| `CRON_SECRET` | Secret for cron endpoint security | ✅ |
+
+## 🚢 Deployment
+
+### Deploy to Vercel
+
+1. Push your code to GitHub
+2. Import project in Vercel dashboard
+3. Add all environment variables
+4. Deploy!
+
+```bash
+# Or use Vercel CLI
+npm i -g vercel
+vercel login
+vercel
+```
+
+### Set Up Cron Jobs
+
+The `vercel.json` file configures a daily cron job at 8 PM UTC:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/reminder",
+      "schedule": "0 20 * * *"
+    }
+  ]
+}
+```
+
+## 📱 Features in Detail
+
+### AI Prompt Engineering
+- Context extraction from user activities (coding → monitors, jogging → sunrise)
+- Mood translation to atmospheric lighting (happy → warm golden tones)
+- Time-aware elements (morning/evening → appropriate lighting)
+- Quality enhancement (cinematic, 8k, depth of field, textures)
+
+### Security
+- JWT-based authentication with Supabase Auth
+- Row Level Security (RLS) policies - users can only access their own data
+- Environment variables for sensitive keys
+- CRON_SECRET to protect scheduled endpoints
+- HTTPS everywhere (enforced by Vercel)
+
+### Performance
+- Server components for reduced JavaScript bundle
+- Next.js Image optimization with lazy loading
+- Edge network via Vercel CDN
+- Database query optimization with indexed foreign keys
+- Supabase connection pooling
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Next.js](https://nextjs.org/) - React framework
+- [Supabase](https://supabase.com/) - Backend as a Service
+- [Google Gemini](https://ai.google.dev/) - AI prompt generation
+- [Stable Diffusion XL](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) - Image generation
+- [Vercel](https://vercel.com/) - Hosting platform
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
+
+## 📞 Contact
+
+**Sameer Kadam** - [@Sameer6305](https://github.com/Sameer6305)
+
+Project Link: [https://github.com/Sameer6305/AuroraAI](https://github.com/Sameer6305/AuroraAI)
+
 ---
 
 ## Getting Started
